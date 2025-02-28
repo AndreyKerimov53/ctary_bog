@@ -1,0 +1,100 @@
+#include <iostream>
+#include <cstdint>
+#include <cmath>
+#include <algorithm>
+
+using namespace std;
+
+struct IEEE754 {
+    uint32_t sign : 1;
+    uint32_t exponent : 8;
+    uint32_t mantissa : 23;
+};
+
+IEEE754 floatToIEEE754(float num) {
+    IEEE754 result;
+    uint32_t* ptr = reinterpret_cast<uint32_t*>(&num);
+    result.sign = (*ptr >> 31) & 0x1;
+    result.exponent = (*ptr >> 23) & 0xFF;
+    result.mantissa = *ptr & 0x7FFFFF;
+    return result;
+}
+
+float ieee754ToFloat(IEEE754 ieee) {
+    uint32_t result = (ieee.sign << 31) | (ieee.exponent << 23) | ieee.mantissa;
+    return *reinterpret_cast<float*>(&result);
+}
+
+IEEE754 subtractIEEE754(IEEE754 a, IEEE754 b) {
+    int exponentDiff = a.exponent - b.exponent;
+
+    if (exponentDiff > 0) {
+        for (int i = 0; i < exponentDiff; ++i) {
+            b.mantissa >>= 1;
+            b.exponent++;
+        }
+    } else if (exponentDiff < 0) {
+        for (int i = 0; i < -exponentDiff; ++i) {
+            a.mantissa >>= 1;
+            a.exponent++;
+        }
+    }
+
+    uint32_t resultMantissa;
+    int resultSign;
+
+    if (a.sign == b.sign) {
+       if ((a.sign == 0 && ieee754ToFloat(a) >= ieee754ToFloat(b) ) ||  (a.sign == 1 && ieee754ToFloat(a) <= ieee754ToFloat(b) ) )
+       {
+            resultMantissa = a.mantissa - b.mantissa;
+            resultSign = a.sign;
+       }
+       else {
+            resultMantissa = b.mantissa - a.mantissa;
+            resultSign = a.sign;
+       }
+
+    } else {
+        resultMantissa = a.mantissa + b.mantissa;
+        if (ieee754ToFloat(a) >= ieee754ToFloat(b)){
+
+            resultSign = a.sign;
+        }
+        else{
+             resultSign = b.sign;
+        }
+    }
+
+    int shift = 0;
+    while ((resultMantissa != 0) && ((resultMantissa & 0x400000) == 0)) {
+        resultMantissa <<= 1;
+        shift++;
+    }
+
+    IEEE754 result;
+    result.sign = resultSign;
+    result.exponent = a.exponent - shift;
+    result.mantissa = resultMantissa & 0x7FFFFF;
+
+    return result;
+}
+
+int main() {
+    float num1, num2;
+
+    cout << "Введите первое число: ";
+    cin >> num1;
+
+    cout << "Введите второе число: ";
+    cin >> num2;
+
+    IEEE754 ieee1 = floatToIEEE754(num1);
+    IEEE754 ieee2 = floatToIEEE754(num2);
+
+    IEEE754 resultIEEE = subtractIEEE754(ieee1, ieee2);
+    float result = ieee754ToFloat(resultIEEE);
+
+    cout << num1 << " - " << num2 << " = " << result << endl;
+
+    return 0;
+}
